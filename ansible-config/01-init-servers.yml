@@ -1,0 +1,300 @@
+#!/usr/bin/env ansible-playbook
+# ====================================================================
+# PLAYBOOK 01 : INITIALISATION DES SERVEURS
+# ====================================================================
+# Objectif :
+#   - Mise à jour du système (apt update/upgrade)
+#   - Installation des paquets essentiels
+#   - Configuration de l'utilisateur Ansible
+#   - Création des répertoires nécessaires
+#   - Configuration Python 3.10
+# ====================================================================
+# Utilisation :
+#   ansible-playbook 01-init-servers.yml
+#   ansible-playbook 01-init-servers.yml --tags "system"
+#   ansible-playbook 01-init-servers.yml -v
+# ====================================================================
+
+---
+
+- name: "INIT-SERVERS : Initialisation complète des serveurs"
+  hosts: targets
+  become: yes
+  gather_facts: yes
+
+  # Tâches pré-playbook
+  pre_tasks:
+    - name: "Afficher l'hôte en cours de configuration"
+      debug:
+        msg: "==> Initialisation de {{ inventory_hostname }} ({{ ansible_host }})"
+      tags:
+        - always
+
+    - name: "Vérifier la connectivité réseau"
+      wait_for:
+        port: 22
+        host: "{{ ansible_host }}"
+        timeout: 30
+      delegate_to: localhost
+      tags:
+        - connectivity
+
+  # Tâches principales
+  tasks:
+
+    # ================================================================
+    # SECTION 1 : MISE À JOUR SYSTÈME
+    # ================================================================
+
+    - name: "[SYSTEM] Mettre à jour la liste des paquets (apt update)"
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      tags:
+        - system
+        - apt
+        - update
+
+    - name: "[SYSTEM] Upgrade des paquets système"
+      apt:
+        upgrade: yes
+        autoremove: yes
+        autoclean: yes
+      when: system_upgrade | default(yes)
+      tags:
+        - system
+        - apt
+        - upgrade
+
+    # ================================================================
+    # SECTION 2 : INSTALLATION DES PAQUETS ESSENTIELS
+    # ================================================================
+
+    - name: "[PACKAGES] Installer les paquets essentiels"
+      apt:
+        name: "{{ common_packages }}"
+        state: present
+      tags:
+        - packages
+        - essential
+      retries: 3
+      delay: 10
+
+    - name: "[PACKAGES] Vérifier que les paquets critiques sont installés"
+      apt:
+        name:
+          - openssh-client
+          - openssh-server
+          - python3
+          - python3.10
+          - curl
+          - wget
+        state: present
+      tags:
+        - packages
+        - essential
+        - critical
+
+    # ================================================================
+    # SECTION 3 : CONFIGURATION PYTHON
+    # ================================================================
+
+    - name: "[PYTHON] Mettre à jour pip, setuptools, wheel pour Python 3.10"
+      shell: |
+        /usr/bin/python3.10 -m pip install --upgrade pip setuptools wheel
+      tags:
+        - python
+        - pip
+      register: pip_update
+      changed_when: "'Successfully installed' in pip_update.stdout or 'Requirement already satisfied' in pip_update.stdout"
+
+    - name: "[PYTHON] Vérifier que Python 3.10 est disponible"
+      command: "/usr/bin/python3.10 --version"
+      tags:
+        - python
+        - verification
+      register: python_version
+      changed_when: false
+
+    - name: "[PYTHON] Afficher version Python"
+      debug:
+        msg: "Python version: {{ python_version.stdout }}"
+      tags:
+        - python
+        - verification
+
+    # ================================================================
+    # SECTION 4 : CRÉATION UTILISATEUR ANSIBLE
+    # ================================================================
+
+    - name: "[USERS] Créer le groupe '{{ ansible_user_name }}'"
+      group:
+        name: "{{ ansible_user_name }}"
+        state: present
+      tags:
+        - users
+        - ansible_user
+
+    - name: "[USERS] Créer l'utilisateur '{{ ansible_user_name }}'"
+      user:
+        name: "{{ ansible_user_name }}"
+        group: "{{ ansible_user_name }}"
+        shell: "{{ ansible_user_shell | default('/bin/bash') }}"
+        home: "{{ ansible_user_home | default('/home/ansible') }}"
+        createhome: yes
+        state: present
+      tags:
+        - users
+        - ansible_user
+
+    - name: "[USERS] Créer le répertoire .ssh pour l'utilisateur ansible"
+      file:
+        path: "{{ ansible_user_home }}/.ssh"
+        state: directory
+        owner: "{{ ansible_user_name }}"
+        group: "{{ ansible_user_name }}"
+        mode: "0700"
+      tags:
+        - users
+        - ssh
+        - ansible_user
+
+    # ================================================================
+    # SECTION 5 : CONFIGURATION SSH & SUDO
+    # ================================================================
+
+    - name: "[SSH] Configurer les clés SSH pour l'utilisateur ansible"
+      shell: |
+        if [ -f /tmp/ssh-keys/id_rsa.pub ]; then
+          mkdir -p {{ ansible_user_home }}/.ssh
+          cat /tmp/ssh-keys/id_rsa.pub >> {{ ansible_user_home }}/.ssh/authorized_keys
+          chmod 600 {{ ansible_user_home }}/.ssh/authorized_keys
+          chown -R {{ ansible_user_name }}:{{ ansible_user_name }} {{ ansible_user_home }}/.ssh
+          echo "SSH keys configurées pour {{ ansible_user_name }}"
+        else
+          echo "Pas de clés SSH trouvées dans /tmp/ssh-keys/"
+        fi
+      tags:
+        - ssh
+        - ansible_user
+        - security
+      register: ssh_config
+      changed_when: "'configurées' in ssh_config.stdout"
+
+    - name: "[SUDO] Ajouter l'utilisateur ansible au groupe sudo"
+      user:
+        name: "{{ ansible_user_name }}"
+        groups: sudo
+        append: yes
+      when: create_sudo_group | default(yes)
+      tags:
+        - users
+        - sudo
+        - ansible_user
+
+    - name: "[SUDO] Configurer sudo sans mot de passe pour ansible (SUDOERS)"
+      lineinfile:
+        path: /etc/sudoers
+        line: "{{ ansible_user_name }} ALL=(ALL) NOPASSWD:ALL"
+        state: present
+        validate: "visudo -cf %s"
+      when: sudo_nopasswd | default(yes)
+      tags:
+        - users
+        - sudo
+        - security
+        - ansible_user
+
+    # ================================================================
+    # SECTION 6 : CRÉATION RÉPERTOIRES NÉCESSAIRES
+    # ================================================================
+
+    - name: "[DIRS] Créer le répertoire pour les logs Ansible"
+      file:
+        path: "{{ log_directory | default('/var/log/ansible') }}"
+        state: directory
+        owner: "{{ ansible_user_name }}"
+        group: "{{ ansible_user_name }}"
+        mode: "0755"
+      tags:
+        - dirs
+        - logs
+
+    - name: "[DIRS] Créer le répertoire pour les backups"
+      file:
+        path: "{{ backup_directory | default('/var/backups/ansible') }}"
+        state: directory
+        owner: "{{ ansible_user_name }}"
+        group: "{{ ansible_user_name }}"
+        mode: "0755"
+      tags:
+        - dirs
+        - backups
+
+    # ================================================================
+    # SECTION 7 : CONFIGURATION SYSTÈME
+    # ================================================================
+
+    - name: "[SYSTEM] Définir la timezone"
+      timezone:
+        name: "{{ timezone | default('UTC') }}"
+      tags:
+        - system
+        - timezone
+
+    - name: "[SYSTEM] Définir la locale"
+      locale_gen:
+        name: "{{ locale | default('en_US.UTF-8') }}"
+        state: present
+      tags:
+        - system
+        - locale
+
+    - name: "[SYSTEM] Afficher informations du serveur"
+      debug:
+        msg:
+          - "Hostname: {{ inventory_hostname }}"
+          - "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Kernel: {{ ansible_kernel }}"
+          - "CPUs: {{ ansible_processor_vcpus }}"
+          - "RAM: {{ (ansible_memtotal_mb / 1024) | round(2) }} GB"
+      tags:
+        - system
+        - info
+
+  # Tâches post-playbook
+  post_tasks:
+    - name: "[VERIFICATION] Vérifier que tous les services essentiels sont actifs"
+      service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop:
+        - ssh
+      ignore_errors: yes
+      tags:
+        - verification
+        - services
+
+    - name: "[VERIFICATION] Afficher le résumé d'exécution"
+      debug:
+        msg: "✓ Initialisation complète de {{ inventory_hostname }}"
+      tags:
+        - always
+
+# ====================================================================
+# SECTION HANDLERS (pour relancer les services)
+# ====================================================================
+
+  handlers:
+    - name: "Redémarrer SSH"
+      service:
+        name: ssh
+        state: restarted
+
+    - name: "Recharger la configuration sudo"
+      shell: "sudo visudo -cf /etc/sudoers"
+
+# ====================================================================
+# FIN PLAYBOOK 01
+# ====================================================================

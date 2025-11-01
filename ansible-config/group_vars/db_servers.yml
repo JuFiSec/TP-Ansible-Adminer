@@ -1,0 +1,164 @@
+# ====================================================================
+# VARIABLES POUR LES SERVEURS BASE DE DONNÉES
+# ====================================================================
+# Ces variables s'appliquent UNIQUEMENT au groupe [db_servers]
+# ====================================================================
+
+---
+
+# ====================================================================
+# MYSQL 8.0
+# ====================================================================
+
+# Installation MySQL
+mysql_install: yes
+mysql_version: "8.0"
+
+# Paquet MySQL
+mysql_package: "mysql-server-8.0"
+
+# Service MySQL
+mysql_service_name: "mysql"
+mysql_service_enabled: yes
+mysql_service_started: yes
+
+# Port MySQL
+mysql_port: 3306
+
+# Socket MySQL (défaut)
+mysql_socket: "/var/run/mysqld/mysqld.sock"
+
+# ====================================================================
+# CONFIGURATION MYSQL
+# ====================================================================
+
+# Bind address (ecouter sur toutes les interfaces)
+mysql_bind_address: "0.0.0.0"
+
+# Options de configuration
+mysql_config:
+  skip_external_locking: "yes"
+  key_buffer_size: "16M"
+  max_allowed_packet: "16M"
+  thread_stack: "192K"
+  thread_cache_size: 8
+  myisam_recover_options: "BACKUP"
+  query_cache_limit: "1M"
+  query_cache_size: "16M"
+  expire_logs_days: 10
+  max_binlog_size: "100M"
+  character_set_server: "utf8mb4"
+  collation_server: "utf8mb4_unicode_ci"
+
+# ====================================================================
+# AUTHENTIFICATION MYSQL
+# ====================================================================
+
+# Mot de passe root MySQL (sera défini dans vault/secrets.yml)
+mysql_root_password: "SetInVault"
+
+# Utilisateurs MySQL à créer
+mysql_users:
+  - name: "adminer_user"
+    host: "%"  # Permettre connexion de n'importe où
+    password: "{{ mysql_adminer_password }}"  # Sera remplacé par vault/secrets.yml
+    priv: "*.*:ALL,GRANT"
+    state: "present"
+
+# ====================================================================
+# BASES DE DONNÉES
+# ====================================================================
+
+# Bases de données à créer
+mysql_databases:
+  - name: "testdb"
+    charset: "utf8mb4"
+    collation: "utf8mb4_unicode_ci"
+    state: "present"
+  - name: "adminer_db"
+    charset: "utf8mb4"
+    collation: "utf8mb4_unicode_ci"
+    state: "present"
+
+# ====================================================================
+# BACKUP & MAINTENANCE
+# ====================================================================
+
+# Dossier pour les backups
+mysql_backup_directory: "/var/backups/mysql"
+
+# Créer dossier de backup
+create_backup_directory: yes
+
+# ====================================================================
+# FICHIERS DE CONFIGURATION
+# ====================================================================
+
+# Chemin vers mysql.cnf
+mysql_config_file: "/etc/mysql/mysql.cnf"
+
+# Chemin vers mysqld.cnf
+mysql_daemon_config_file: "/etc/mysql/mysql.conf.d/mysqld.cnf"
+
+# ====================================================================
+# SÉCURITÉ
+# ====================================================================
+
+# Supprimer les utilisateurs anonymes (sécurité)
+remove_anonymous_users: yes
+
+# Supprimer les bases de test (sécurité)
+remove_test_database: yes
+
+# Désactiver le login root à distance
+disable_remote_root: yes
+
+# ====================================================================
+# PARE-FEU - RÈGLES ENTRANTES
+# ====================================================================
+
+# Port MySQL
+mysql_firewall_port: 3306
+
+# Règles de pare-feu
+firewall_rules:
+  - protocol: tcp
+    port: 3306
+    comment: "MySQL"
+    source: "10.10.10.0/24"  # Limiter au réseau Docker Ansible
+
+# ====================================================================
+# CLIENT MYSQL
+# ====================================================================
+
+# Installation client MySQL
+mysql_client_install: yes
+
+mysql_client_packages:
+  - mysql-client
+
+# ====================================================================
+# MONITORING & LOGS
+# ====================================================================
+
+# Activer les logs binaires (pour replication/recovery)
+enable_binary_logging: yes
+
+# Log d'erreurs
+log_error: "/var/log/mysql/error.log"
+
+# Log d'activité générale (verbose - attention à la performance)
+enable_general_log: no
+
+# Log des requêtes lentes
+enable_slow_query_log: yes
+slow_query_time: 2
+
+# ====================================================================
+# TAGS
+# ====================================================================
+
+tags:
+  - database
+  - mysql
+  - db

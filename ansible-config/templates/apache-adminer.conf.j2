@@ -1,0 +1,21 @@
+<VirtualHost *:80>
+    ServerName {{ vhost_server_name | default('localhost') }}
+    ServerAdmin admin@example.com
+    
+    DocumentRoot {{ apache2_document_root }}
+    
+    <Directory {{ apache2_document_root }}>
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    
+    <Directory {{ adminer_install_dir }}>
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    
+    ErrorLog ${APACHE_LOG_DIR}/adminer-error.log
+    CustomLog ${APACHE_LOG_DIR}/adminer-access.log combined
+</VirtualHost>

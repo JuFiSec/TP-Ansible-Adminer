@@ -1,0 +1,41 @@
+---
+- name: Configuration du monitoring
+  hosts: all
+  tasks:
+    - name: Créer le répertoire monitoring
+      file:
+        path: /tmp/monitoring
+        state: directory
+        mode: '0755'
+
+    - name: Déployer le script de monitoring
+      copy:
+        content: |
+          #!/bin/bash
+          # Script de monitoring simple
+          LOG_FILE="/tmp/monitoring/system.log"
+          
+          echo "$(date): Vérification système sur {{ ansible_hostname }}" >> $LOG_FILE
+          echo "  - Load Average: $(uptime | awk -F'load average:' '{print $2}')" >> $LOG_FILE
+          echo "  - Disk Usage: $(df -h / | tail -1 | awk '{print $5}')" >> $LOG_FILE
+          echo "  - Memory Usage: $(free | grep Mem | awk '{printf "%.1f%%", $3/$2 * 100.0}')" >> $LOG_FILE
+        dest: /tmp/monitoring/check_system.sh
+        mode: '0755'
+
+    - name: Créer le fichier de log
+      copy:
+        content: "# Log de monitoring - Serveur {{ ansible_hostname }}\n"
+        dest: /tmp/monitoring/system.log
+        mode: '0644'
+        force: no  # Ne pas écraser si le fichier existe
+
+    - name: Exécuter une première vérification
+      shell: /tmp/monitoring/check_system.sh
+
+    - name: Afficher le contenu du log
+      shell: cat /tmp/monitoring/system.log
+      register: log_content
+
+    - name: Afficher le résultat
+      debug:
+        var: log_content.stdout_lines

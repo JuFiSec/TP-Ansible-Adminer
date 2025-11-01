@@ -1,0 +1,54 @@
+---
+- name: Validation de la configuration utilisateurs
+  hosts: targets
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Vérification des groupes créés
+      shell: "getent group {{ item }}"
+      loop:
+        - devops
+        - developers
+        - monitoring
+      register: group_check
+      
+    - name: Affichage des groupes
+      debug:
+        msg: "{{ item.item }}: {{ item.stdout }}"
+      loop: "{{ group_check.results }}"
+      
+    - name: Vérification des utilisateurs créés
+      shell: "id {{ item }}"
+      loop:
+        - devuser
+        - appuser
+        - monitoring
+      register: user_check
+      
+    - name: Affichage des utilisateurs
+      debug:
+        msg: "{{ item.item }}: {{ item.stdout }}"
+      loop: "{{ user_check.results }}"
+      
+    - name: Test des permissions sudo pour devuser
+      shell: "sudo -l -U devuser"
+      register: sudo_check
+      
+    - name: Affichage des permissions sudo
+      debug:
+        var: sudo_check.stdout_lines
+        
+    - name: Vérification des répertoires home
+      stat:
+        path: "/home/{{ item }}"
+      loop:
+        - devuser
+        - appuser
+        - monitoring
+      register: home_check
+      
+    - name: Résultat des répertoires home
+      debug:
+        msg: "Home de {{ item.item }}: {{ 'Existe' if item.stat.exists else 'Manquant' }}"
+      loop: "{{ home_check.results }}"

@@ -1,0 +1,91 @@
+services:
+  # Machine de contrôle Ansible
+  ansible-controller:
+    build:
+      context: ./.docker/ansible-controller  
+      dockerfile: Dockerfile                 
+    image: semifir/ansible-controller
+    container_name: ansible-controller
+    hostname: ansible-controller
+    networks:
+      ansible-network:
+        ipv4_address: 10.10.10.10
+    volumes:
+      - ./ansible-config:/ansible
+      - ./ssh-keys:/root/.ssh
+    depends_on:
+      web:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+  # Service pour build l'image cible
+  target-build:
+    restart: "no"
+    build:
+      context: ./.docker/target  # <-- CORRIGÉ
+      dockerfile: Dockerfile       # <-- CORRIGÉ
+    image: semifir/ansible-target
+
+  # Serveur Web (Adminer + Apache + PHP)
+  web:
+    image: semifir/ansible-target
+    container_name: web-server
+    hostname: web
+    networks:
+      ansible-network:
+        ipv4_address: 10.10.10.20
+    volumes:
+      - ./ssh-keys:/tmp/ssh-keys:ro
+
+    ports:
+      - "8080:80"
+      - "2222:22"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "22"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - target-build
+    tty: true
+    stdin_open: true
+
+  # Serveur de Base de Données (MySQL)
+  db:
+    image: semifir/ansible-target
+    container_name: db-server
+    hostname: db
+    networks:
+      ansible-network:
+        ipv4_address: 10.10.10.30
+    volumes:
+      - ./ssh-keys:/tmp/ssh-keys:ro
+
+    ports:
+      - "3306:3306"
+      - "2223:22"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "22"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - target-build
+    tty: true
+    stdin_open: true
+
+networks:
+  ansible-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.10.0/24
+          gateway: 10.10.10.254

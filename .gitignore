@@ -1,0 +1,253 @@
+# ====================================================================
+# .GITIGNORE - FICHIERS À IGNORER DANS GIT
+# ====================================================================
+# Cet fichier spécifie quels fichiers/dossiers NE PAS commiter sur
+# GitHub (secrets, logs, caches, fichiers temporaires, etc.)
+# ====================================================================
+
+# ====================================================================
+# SECRETS & CREDENTIALS (CRITICAL !)
+# ====================================================================
+
+# Fichier password Vault (NE JAMAIS COMMITER!)
+.vault-password
+.vault-pass
+vault-password
+
+# Variables d'environnement avec secrets
+.env
+.env.local
+.env.*.local
+
+# SSH keys (NE JAMAIS COMMITER!)
+ssh-keys/
+ssh_keys/
+.ssh/
+id_rsa*
+*.pem
+*.key
+*.pub
+
+# Secrets chiffrés déchiffrés (temporaire pendant édition)
+vault/secrets.yml.decrypted
+vault/secrets.yml~
+
+# ====================================================================
+# LOGS
+# ====================================================================
+
+# Logs Ansible
+logs/
+*.log
+*.log.*
+ansible.log
+/var/log/
+*.out
+
+# ====================================================================
+# CACHES & DONNÉES TEMPORAIRES
+# ====================================================================
+
+# Cache Ansible
+.ansible/
+fact_cache/
+.cache/
+
+# Cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ====================================================================
+# IDE & ÉDITEURS
+# ====================================================================
+
+# VS Code
+.vscode/
+*.code-workspace
+.VSCodeCounter/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+.iws
+.ipr
+.DS_Store
+
+# Vim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# Nano
+.~
+
+# ====================================================================
+# SYSTÈME OPÉRATIONNEL
+# ====================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+desktop.ini
+Thumbs.db
+$RECYCLE.BIN/
+
+# Linux
+.directory
+.~*
+
+# ====================================================================
+# DOCKER
+# ====================================================================
+
+# Docker
+Dockerfile.dev
+docker-compose.dev.yml
+.docker/
+
+# Volume data
+volumes/
+data/
+
+# ====================================================================
+# BASES DE DONNÉES
+# ====================================================================
+
+# Dumps SQL
+*.sql
+*.sql.gz
+*.dump
+
+# Données de test
+test_data/
+backups/
+
+# ====================================================================
+# FICHIERS TEMPORAIRES & TRASH
+# ====================================================================
+
+# Fichiers OS temporaires
+*~
+*.tmp
+*.temp
+
+# Fichiers de test
+test_results.txt
+test_output.log
+
+# Rapports de couverture
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# ====================================================================
+# CONFIGURATION LOCALE (Ne pas PUSH configurations personnelles)
+# ====================================================================
+
+# Configuration locale
+.local/
+.conf.local
+*.local.yml
+*.local.yaml
+*.local.env
+
+# ====================================================================
+# ARTIFACTS DE BUILD
+# ====================================================================
+
+# Ansible artifacts
+*.tar.gz
+*.zip
+dist/
+build/
+
+# ====================================================================
+# DOCUMENTATION GÉNÉRÉE
+# ====================================================================
+
+# Sphinx
+docs/_build/
+site/
+
+# ====================================================================
+# FICHIERS QUI DOIVENT ÊTRE COMMITÉS ✓
+# ====================================================================
+
+# EXCEPTION : Ces fichiers DOIVENT être commités malgré les patterns ci-dessus
+
+# Exemples de configuration (sans données sensibles)
+!.env.example
+!.env.*.example
+!.editorconfig
+
+# Documentation
+!README.md
+!CHANGELOG.md
+!LICENSE
+
+# Makefile
+!Makefile
+
+# GitHub workflows
+!.github/workflows/
+
+# ====================================================================
+# NOTES
+# ====================================================================
+#
+# Pour ajouter des fichiers déjà ignorés :
+#   git add -f <file>
+#
+# Pour voir les fichiers ignorés :
+#   git check-ignore -v <file>
+#
+# Pour vider le cache de fichiers ignorés :
+#   git rm -r --cached .
+#   git add .
+#   git commit -m "Update .gitignore"
+#
+# ====================================================================

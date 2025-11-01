@@ -1,0 +1,27 @@
+---
+- name: Gestion des erreurs
+  hosts: for-target-1
+  tasks:
+    - name: Commande qui peut échouer
+      shell: ls /repertoire/inexistant
+      register: ls_result
+      ignore_errors: yes
+
+    - name: Traitement en cas d'échec
+      debug:
+        msg: "La commande a échoué: {{ ls_result.stderr }}"
+      when: ls_result.failed
+
+    - name: Commande alternative en cas d'échec
+      shell: echo "Répertoire non trouvé, création..."
+      when: ls_result.failed
+
+    - name: Créer le répertoire manquant
+      file:
+        path: /tmp/nouveau_repertoire
+        state: directory
+      when: ls_result.failed
+
+    - name: Vérification finale
+      shell: ls -la /tmp/nouveau_repertoire
+      when: ls_result.failed

@@ -1,0 +1,382 @@
+#!/usr/bin/env ansible-playbook
+# ====================================================================
+# PLAYBOOK 02 : DÉPLOIEMENT D'ADMINER
+# ====================================================================
+# Objectif :
+#   - Installation et configuration d'Apache2
+#   - Installation de PHP 8.2 et extensions nécessaires
+#   - Téléchargement et configuration d'Adminer 4.8.1
+#   - Configuration VirtualHost pour Adminer
+# ====================================================================
+# Utilisation :
+#   ansible-playbook 02-deploy-adminer.yml
+#   ansible-playbook 02-deploy-adminer.yml -u ansible -k
+#   ansible-playbook 02-deploy-adminer.yml --tags "apache"
+# ====================================================================
+
+---
+
+- name: "DEPLOY-ADMINER : Déploiement d'Adminer sur serveurs web"
+  hosts: web_servers
+  become: yes
+  gather_facts: yes
+
+  # Tâches pré-playbook
+  pre_tasks:
+    - name: "Afficher l'hôte en cours de configuration"
+      debug:
+        msg: "==> Déploiement Adminer sur {{ inventory_hostname }}"
+      tags:
+        - always
+
+  # Tâches principales
+  tasks:
+
+    # ================================================================
+    # SECTION 1 : INSTALLATION APACHE2
+    # ================================================================
+
+    - name: "[APACHE] Mettre à jour la liste des paquets"
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      tags:
+        - apache
+        - packages
+
+    - name: "[APACHE] Installer Apache2"
+      apt:
+        name: apache2
+        state: present
+      tags:
+        - apache
+        - packages
+
+    - name: "[APACHE] Activer les modules Apache nécessaires"
+      apache2_module:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - rewrite
+        - proxy
+        - proxy_http
+        - ssl
+        - headers
+        - deflate
+        - mime
+        - dir
+        - env
+      tags:
+        - apache
+        - modules
+      notify: Redémarrer Apache2
+
+    - name: "[APACHE] Créer le répertoire de documents racine"
+      file:
+        path: "{{ apache2_document_root }}"
+        state: directory
+        owner: "{{ apache2_user }}"
+        group: "{{ apache2_group }}"
+        mode: "0755"
+      tags:
+        - apache
+        - dirs
+
+    - name: "[APACHE] Démarrer et activer Apache2"
+      service:
+        name: apache2
+        state: started
+        enabled: yes
+      tags:
+        - apache
+        - services
+
+    # ================================================================
+    # SECTION 2 : INSTALLATION PHP 8.2
+    # ================================================================
+
+    - name: "[PHP] Ajouter le PPA Ondrej pour PHP 8.2"
+      shell: |
+        apt-get install -y software-properties-common
+        add-apt-repository -y ppa:ondrej/php
+        apt-get update
+      tags:
+        - php
+        - ppa
+      register: ppa_added
+      changed_when: "'ppa:ondrej/php' in ppa_added.stdout or 'ppa:ondrej/php' in ppa_added.stderr"
+
+    - name: "[PHP] Installer PHP 8.2 et extensions"
+      apt:
+        name: "{{ php_extensions }}"
+        state: present
+      tags:
+        - php
+        - packages
+      retries: 3
+      delay: 10
+
+    - name: "[PHP] Configurer PHP (php.ini)"
+      lineinfile:
+        path: "/etc/php/8.2/apache2/php.ini"
+        regexp: "^{{ item.key }}"
+        line: "{{ item.key }} = {{ item.value }}"
+        state: present
+      loop:
+        - { key: "upload_max_filesize", value: "{{ php_config.upload_max_filesize | default('64M') }}" }
+        - { key: "post_max_size", value: "{{ php_config.post_max_size | default('64M') }}" }
+        - { key: "max_execution_time", value: "{{ php_config.max_execution_time | default(300) }}" }
+        - { key: "memory_limit", value: "{{ php_config.memory_limit | default('256M') }}" }
+        - { key: "date.timezone", value: "{{ php_config.date_timezone | default('UTC') }}" }
+      tags:
+        - php
+        - config
+      notify: Redémarrer Apache2
+
+    - name: "[PHP] Vérifier la version de PHP"
+      shell: "/usr/bin/php8.2 --version"
+      tags:
+        - php
+        - verification
+      register: php_version
+      changed_when: false
+
+    - name: "[PHP] Afficher la version PHP"
+      debug:
+        msg: "{{ php_version.stdout }}"
+      tags:
+        - php
+        - verification
+
+    # ================================================================
+    # SECTION 3 : INSTALLATION ADMINER
+    # ================================================================
+
+    - name: "[ADMINER] Créer le répertoire Adminer"
+      file:
+        path: "{{ adminer_path }}"
+        state: directory
+        owner: "{{ adminer_user }}"
+        group: "{{ adminer_group }}"
+        mode: "0755"
+      tags:
+        - adminer
+        - dirs
+
+    - name: "[ADMINER] Télécharger Adminer 4.8.1"
+      get_url:
+        url: "{{ adminer_download_url }}"
+        dest: "{{ adminer_path }}/{{ adminer_filename }}"
+        owner: "{{ adminer_user }}"
+        group: "{{ adminer_group }}"
+        mode: "0755"
+      tags:
+        - adminer
+        - download
+      register: adminer_downloaded
+      retries: 3
+      delay: 5
+
+    - name: "[ADMINER] Vérifier que Adminer est bien téléchargé"
+      stat:
+        path: "{{ adminer_path }}/{{ adminer_filename }}"
+      tags:
+        - adminer
+        - verification
+      register: adminer_file
+
+    - name: "[ADMINER] Afficher le statut du fichier Adminer"
+      debug:
+        msg: "Adminer file size: {{ adminer_file.stat.size }} bytes"
+      when: adminer_file.stat.exists
+      tags:
+        - adminer
+        - verification
+
+    - name: "[ADMINER] Créer un fichier d'index pour Apache"
+      copy:
+        content: |
+          <?php
+          // ====================================================================
+          // INDEX ADMINER
+          // ====================================================================
+          // Redirection automatique vers Adminer
+          // ====================================================================
+          
+          header("Location: /adminer/{{ adminer_filename }}");
+          exit;
+          ?>
+        dest: "{{ apache2_document_root }}/index.php"
+        owner: "{{ apache2_user }}"
+        group: "{{ apache2_group }}"
+        mode: "0644"
+      tags:
+        - adminer
+        - config
+
+    # ================================================================
+    # SECTION 4 : CONFIGURATION APACHE VIRTUALHOST
+    # ================================================================
+
+    - name: "[VHOST] Créer le VirtualHost pour Adminer"
+      copy:
+        content: |
+          # ====================================================================
+          # VIRTUALHOST - ADMINER
+          # ====================================================================
+          
+          <VirtualHost *:{{ apache2_port }}>
+              ServerName localhost
+              ServerAlias adminer.local
+              ServerAdmin admin@adminer.local
+              
+              DocumentRoot {{ apache2_document_root }}
+              
+              # Logs
+              ErrorLog ${APACHE_LOG_DIR}/adminer_error.log
+              CustomLog ${APACHE_LOG_DIR}/adminer_access.log combined
+              
+              # Répertoire Adminer
+              <Directory {{ apache2_document_root }}>
+                  Options Indexes FollowSymLinks
+                  AllowOverride All
+                  
+                  # Apache 2.4
+                  <IfModule mod_authz_core.c>
+                      Require all granted
+                  </IfModule>
+                  
+                  # Apache 2.2
+                  <IfModule !mod_authz_core.c>
+                      Order allow,deny
+                      Allow from all
+                  </IfModule>
+                  
+                  # Activer la réécriture
+                  <IfModule mod_rewrite.c>
+                      RewriteEngine On
+                      RewriteCond %{REQUEST_FILENAME} !-f
+                      RewriteCond %{REQUEST_FILENAME} !-d
+                  </IfModule>
+              </Directory>
+              
+              # Autoriser PHP à traiter les fichiers .php
+              <FilesMatch \.php$>
+                  <IfModule mod_php.c>
+                      SetHandler application/x-httpd-php
+                  </IfModule>
+              </FilesMatch>
+              
+              # Performance : gzip compression
+              <IfModule mod_deflate.c>
+                  AddOutputFilterByType DEFLATE text/html text/plain text/xml
+                  AddOutputFilterByType DEFLATE text/css text/javascript
+                  AddOutputFilterByType DEFLATE application/javascript application/json
+              </IfModule>
+          </VirtualHost>
+        dest: "/etc/apache2/sites-available/adminer.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      tags:
+        - apache
+        - vhost
+        - config
+      notify: Redémarrer Apache2
+
+    - name: "[VHOST] Activer le VirtualHost pour Adminer"
+      shell: |
+        a2ensite adminer.conf 2>/dev/null
+        echo "VirtualHost activé"
+      tags:
+        - apache
+        - vhost
+      register: vhost_enabled
+      changed_when: "'activé' in vhost_enabled.stdout or 'Enabling' in vhost_enabled.stdout"
+      notify: Redémarrer Apache2
+
+    - name: "[APACHE] Désactiver le site default"
+      shell: |
+        a2dissite 000-default.conf 2>/dev/null || true
+        echo "Site default désactivé"
+      tags:
+        - apache
+        - vhost
+      register: vhost_disabled
+      changed_when: "'désactivé' in vhost_disabled.stdout or 'Disabling' in vhost_disabled.stdout"
+      notify: Redémarrer Apache2
+
+    - name: "[APACHE] Vérifier la syntaxe Apache"
+      shell: "apache2ctl configtest"
+      tags:
+        - apache
+        - verification
+      register: apache_syntax
+      changed_when: false
+
+    - name: "[APACHE] Afficher le résultat de la vérification"
+      debug:
+        msg: "{{ apache_syntax.stdout }}"
+      tags:
+        - apache
+        - verification
+
+    # ================================================================
+    # SECTION 5 : INSTALLATION MYSQL CLIENT
+    # ================================================================
+
+    - name: "[MYSQL-CLIENT] Installer MySQL client"
+      apt:
+        name: "{{ mysql_client_packages }}"
+        state: present
+      tags:
+        - mysql
+        - client
+        - packages
+
+    # ================================================================
+    # SECTION 6 : VÉRIFICATIONS FINALES
+    # ================================================================
+
+    - name: "[VERIFICATION] Vérifier que Apache2 est en cours d'exécution"
+      service:
+        name: apache2
+        state: started
+        enabled: yes
+      tags:
+        - verification
+        - services
+
+    - name: "[VERIFICATION] Tester la connectivité HTTP"
+      uri:
+        url: "http://localhost/"
+        method: GET
+        status_code: 200
+      tags:
+        - verification
+        - http
+      register: http_test
+      retries: 3
+      delay: 5
+
+    - name: "[VERIFICATION] Afficher le résumé du déploiement"
+      debug:
+        msg:
+          - "✓ Apache2 installé et actif"
+          - "✓ PHP 8.2 installé et configuré"
+          - "✓ Adminer 4.8.1 téléchargé et installé"
+          - "✓ Adminer disponible à : http://{{ inventory_hostname }}/adminer/adminer.php"
+          - "✓ MySQL client installé"
+      tags:
+        - always
+
+  # Handlers pour relancer les services
+  handlers:
+    - name: "Redémarrer Apache2"
+      service:
+        name: apache2
+        state: restarted
+
+# ====================================================================
+# FIN PLAYBOOK 02
+# ====================================================================

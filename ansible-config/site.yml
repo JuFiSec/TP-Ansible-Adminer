@@ -1,0 +1,86 @@
+#!/usr/bin/env ansible-playbook
+# ====================================================================
+# PLAYBOOK SITE.YML : ORCHESTRATION COMPLÈTE
+# ====================================================================
+---
+# ====================================================================
+# PLAYBOOK 1 : INITIALISATION DES SERVEURS
+# ====================================================================
+- name: "STEP 1 : Initialisation des serveurs"
+  import_playbook: 01-init-servers.yml
+  tags:
+    - init
+    - servers
+
+# ====================================================================
+# PLAYBOOK 2 : DÉPLOIEMENT ADMINER (Web Servers)
+# ====================================================================
+- name: "STEP 2 : Déploiement Adminer"
+  import_playbook: 02-deploy-adminer.yml
+  tags:
+    - web
+    - adminer
+    - apache
+    - php
+
+# ====================================================================
+# PLAYBOOK 3 : DÉPLOIEMENT DATABASE (DB Servers)
+# ====================================================================
+- name: "STEP 3 : Déploiement Database (MySQL)"
+  import_playbook: 03-deploy-database.yml
+  tags:
+    - database
+    - mysql
+    - db
+
+# ====================================================================
+# PLAYBOOK FINAL : RÉSUMÉ
+# ====================================================================
+- name: "FINAL : Résumé et vérifications"
+  hosts: targets
+  gather_facts: yes
+  tasks:
+    - name: "[SUMMARY] Afficher le résumé d'exécution"
+      debug:
+        msg: |
+          
+          ╔════════════════════════════════════════════════════════════╗
+          ║                                                            ║
+          ║             ✓ DÉPLOIEMENT COMPLET TERMINÉ !              ║
+          ║                                                            ║
+          ╚════════════════════════════════════════════════════════════╝
+          
+          📊 INFRASTRUCTURE ANSIBLE
+          ═════════════════════════════════════════════════════════════
+          
+          Serveurs configurés :
+            • {{ inventory_hostname }}
+          
+          OS : {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Kernel : {{ ansible_kernel }}
+          
+          
+          🌐 ACCÈS AUX SERVICES
+          ═════════════════════════════════════════════════════════════
+          
+          Web Servers :
+            ✓ http://localhost:8080/adminer/adminer.php  <-- PORT CORRIGÉ
+          
+          Database Server :
+            ✓ MySQL 8.0 sur db:3306
+            ✓ Utilisateur : adminer_user
+            ✓ Bases : testdb, adminer_db
+          
+          
+          🔐 PROCHAINES ÉTAPES
+          ═════════════════════════════════════════════════════════════
+          
+          1. Vérifier la connectivité depuis Adminer.
+          2. Accéder à Adminer sur votre navigateur :
+             → http://localhost:8080/adminer/adminer.php
+          
+          
+          ✅ CONFIGURATION COMPLÈTE !
+          ═════════════════════════════════════════════════════════════
+      tags:
+        - always

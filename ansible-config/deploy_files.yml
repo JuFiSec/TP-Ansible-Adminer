@@ -1,0 +1,52 @@
+---
+- name: Déployer plusieurs fichiers
+  hosts: targets
+  gather_facts: yes  # Important : collecte les facts automatiquement
+  tasks:
+    - name: Créer un répertoire de travail
+      file:
+        path: /tmp/ansible_work
+        state: directory
+        mode: '0755'
+        owner: ansible
+        group: ansible
+
+    - name: Créer un fichier de configuration
+      copy:
+        content: |
+          # Configuration Ansible
+          server_name={{ ansible_hostname }}
+          timestamp={{ ansible_date_time.iso8601 }}
+        dest: /tmp/ansible_work/config.txt
+        mode: '0644'
+
+    - name: Créer un script de diagnostic
+      copy:
+        content: |
+          #!/bin/bash
+          echo "=== Diagnostic du serveur {{ ansible_hostname }} ==="
+          echo "Date: $(date)"
+          echo "Uptime: $(uptime)"
+          echo "Espace disque:"
+          df -h /
+          echo "Mémoire:"
+          free -h
+        dest: /tmp/ansible_work/diagnostic.sh
+        mode: '0755'
+
+    - name: Créer un fichier README
+      copy:
+        content: |
+          # Répertoire Ansible Work
+          
+          Ce répertoire contient des fichiers créés par Ansible.
+          
+          ## Fichiers présents:
+          - config.txt: Configuration du serveur
+          - diagnostic.sh: Script de diagnostic système
+          - README.md: Ce fichier
+          
+          Serveur: {{ ansible_hostname }}
+          Créé le: {{ ansible_date_time.date }}
+        dest: /tmp/ansible_work/README.md
+        mode: '0644'

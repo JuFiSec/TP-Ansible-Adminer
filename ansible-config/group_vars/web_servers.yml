@@ -1,0 +1,160 @@
+# ====================================================================
+# VARIABLES POUR LES SERVEURS WEB
+# ====================================================================
+# Ces variables s'appliquent UNIQUEMENT au groupe [web_servers]
+# ====================================================================
+
+---
+
+# ====================================================================
+# APACHE2
+# ====================================================================
+
+# Installation et activation d'Apache2
+apache2_install: yes
+apache2_enable: yes
+apache2_start: yes
+
+# Port d'écoute Apache
+apache2_port: 80
+
+# Configuration Apache
+apache2_config:
+  - modules:
+      - rewrite
+      - proxy
+      - proxy_http
+      - php8.2
+      - ssl
+  - sites:
+      - name: "adminer.local"
+        enabled: yes
+
+# Utilisateur/groupe Apache
+apache2_user: "www-data"
+apache2_group: "www-data"
+
+# Dossier racine web
+apache2_document_root: "/var/www/html"
+
+# ====================================================================
+# PHP 8.2
+# ====================================================================
+
+# Installation PHP 8.2
+php_version: "8.2"
+php_install: yes
+
+# Extensions PHP requises
+php_extensions:
+  - php8.2-cli
+  - php8.2-fpm
+  - php8.2-common
+  - php8.2-pdo
+  - php8.2-mysql
+  - php8.2-pgsql
+  - php8.2-curl
+  - php8.2-gd
+  - php8.2-opcache
+  - php8.2-mbstring
+  - php8.2-xml
+  - php8.2-zip
+  - php8.2-bcmath
+  - libapache2-mod-php8.2
+
+# Configuration PHP
+php_config:
+  upload_max_filesize: "64M"
+  post_max_size: "64M"
+  max_execution_time: 300
+  max_input_time: 300
+  memory_limit: "256M"
+  date_timezone: "UTC"
+
+# PHP-FPM
+php_fpm_install: yes
+php_fpm_enable: yes
+
+# ====================================================================
+# ADMINER
+# ====================================================================
+
+# Version d'Adminer
+adminer_version: "4.8.1"
+
+# URL de téléchargement d'Adminer
+adminer_download_url: "https://github.com/vrana/adminer/releases/download/v{{ adminer_version }}/adminer-{{ adminer_version }}.php"
+
+# Dossier d'installation d'Adminer
+adminer_path: "{{ apache2_document_root }}/adminer"
+
+# Nom du fichier Adminer
+adminer_filename: "adminer.php"
+
+# Permissions d'accès Adminer
+adminer_user: "www-data"
+adminer_group: "www-data"
+adminer_mode: "0755"
+
+# Configuration Adminer
+adminer_config:
+  db_server: "for-target-3"
+  db_user: "adminer_user"
+  # db_password sera défini dans vault/secrets.yml
+
+# ====================================================================
+# MYSQL CLIENT (pour tester les connexions)
+# ====================================================================
+
+# Installation MySQL client
+mysql_client_install: yes
+
+mysql_client_packages:
+  - mysql-client
+
+
+# ====================================================================
+# CERTIFICATS SSL (OPTIONNEL)
+# ====================================================================
+
+# SSL pour Apache (optionnel, non utilisé en local)
+enable_ssl: no
+ssl_certificate_path: "/etc/apache2/ssl"
+
+# ====================================================================
+# PARE-FEU - RÈGLES ENTRANTES
+# ====================================================================
+
+# Port HTTP
+http_port: 80
+
+# Port HTTPS (si SSL activé)
+https_port: 443
+
+# Ports à ouvrir dans le pare-feu
+firewall_rules:
+  - protocol: tcp
+    port: 80
+    comment: "HTTP"
+  - protocol: tcp
+    port: 443
+    comment: "HTTPS"
+
+# ====================================================================
+# UTILISATEURS WEB
+# ====================================================================
+
+# Créer un utilisateur admin pour Adminer
+create_admin_user: yes
+admin_username: "adminer_admin"
+# admin_password sera défini dans vault/secrets.yml
+
+# ====================================================================
+# TAGS
+# ====================================================================
+
+tags:
+  - web
+  - apache
+  - php
+  - adminer

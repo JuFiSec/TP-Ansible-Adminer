@@ -1,0 +1,66 @@
+---
+- name: Gestion Apache dans conteneurs Docker
+  hosts: web_servers
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Installation d'Apache
+      apt:
+        name: apache2
+        state: present
+        update_cache: yes
+        
+    - name: Tentative de démarrage avec le module service
+      service:
+        name: apache2
+        state: started
+      register: apache_service
+      ignore_errors: yes
+      
+    - name: Méthode alternative si service module échoue
+      block:
+        - name: Démarrer Apache avec systemctl
+          shell: "systemctl start apache2"
+          register: apache_systemctl
+          ignore_errors: yes
+          
+        - name: Démarrage manuel si systemctl échoue
+          shell: "/usr/sbin/apache2ctl start"
+          when: apache_systemctl.failed
+          register: apache_manual
+          
+      when: apache_service.failed
+      
+    - name: Vérifier qu'Apache écoute sur le port 80
+      shell: "ss -tlnp | grep :80 || netstat -tlnp | grep :80"
+      register: apache_port
+      
+    - name: Test HTTP local
+      uri:
+        url: "http://localhost"
+        method: GET
+        timeout: 5
+      register: http_test
+      ignore_errors: yes
+      
+    - name: Créer une page de test
+      copy:
+        content: |
+          <html>
+          <head><title>{{ ansible_hostname }} - Docker Container</title></head>
+          <body>
+            <h1>Apache sur {{ ansible_hostname }}</h1>
+            <p>Serveur web fonctionnel dans un conteneur Docker</p>
+            <p>Date: {{ ansible_date_time.iso8601 }}</p>
+          </body>
+          </html>
+        dest: /var/www/html/index.html
+        
+    - name: Résultat final Apache
+      debug:
+        msg: |
+          Apache installé: Oui
+          Service démarré: {{ 'Oui' if not apache_service.failed or not apache_systemctl.failed or not apache_manual.failed else 'Échec' }}
+          Port 80 ouvert: {{ 'Oui' if ':80' in apache_port.stdout else 'Non' }}
+          Test HTTP: {{ 'Succès' if http_test.status == 200 else 'Échec' }}

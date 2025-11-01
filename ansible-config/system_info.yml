@@ -1,0 +1,23 @@
+---
+- name: Collecte d'informations système
+  hosts: all
+  tasks:
+    - name: Obtenir l'uptime
+      shell: uptime
+      register: uptime_result
+
+    - name: Obtenir l'usage disque
+      shell: df -h /
+      register: disk_result
+
+    - name: Obtenir les processus système
+      shell: ps aux | grep -E "(ssh|ansible)" | grep -v grep
+      register: process_result
+
+    - name: Afficher les résultats
+      debug:
+        msg: |
+          === {{ ansible_hostname }} ===
+          Uptime: {{ uptime_result.stdout }}
+          Disk Usage: {{ disk_result.stdout_lines[1] }}
+          Processes: {{ process_result.stdout_lines | length }} processus trouvés

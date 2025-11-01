@@ -1,0 +1,38 @@
+---
+- name: Installation de packages essentiels
+  hosts: all
+  become: yes
+  tasks:
+    - name: Mise à jour du cache APT
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Installation des outils de base
+      apt:
+        name:
+          - tree
+          - htop
+          - curl
+          - wget
+          - unzip
+          - git
+          - vim
+          - net-tools
+        state: present
+
+    - name: Vérification des installations
+      shell: "{{ item }} --version || {{ item }} -V || which {{ item }}"
+      loop:
+        - tree
+        - htop
+        - curl
+        - wget
+        - git
+      register: version_check
+      ignore_errors: yes
+
+    - name: Affichage des versions
+      debug:
+        msg: "{{ item.item }}: {{ item.stdout | default('Non disponible') }}"
+      loop: "{{ version_check.results }}"

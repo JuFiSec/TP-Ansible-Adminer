@@ -1,0 +1,16 @@
+---
+- name: Test de connectivité
+  hosts: targets
+  become: yes
+  tasks:
+    - name: Ping les machines
+      ping:
+    - name: Installer htop
+      apt:
+        name: htop
+        state: present
+        update_cache: yes
+    - name: Créer un fichier de test
+      copy:
+        content: "Hello from Ansible!"
+        dest: /tmp/ansible-test.txt.

@@ -1,0 +1,47 @@
+---
+- name: Test des capacités de gestion des services
+  hosts: for-target-1
+  become: yes
+  tasks:
+    - name: Test du module service avec SSH
+      service:
+        name: ssh
+        state: started
+      register: ssh_service_test
+      ignore_errors: yes
+      
+    - name: Résultat test module service
+      debug:
+        msg: |
+          Module service fonctionnel: {{ 'Oui' if not ssh_service_test.failed else 'Non' }}
+          {% if ssh_service_test.failed %}
+          Erreur: {{ ssh_service_test.msg }}
+          {% endif %}
+          
+    - name: Test direct avec systemctl
+      shell: "systemctl status ssh"
+      register: systemctl_test
+      ignore_errors: yes
+      
+    - name: Résultat systemctl
+      debug:
+        msg: |
+          Systemctl fonctionnel: {{ 'Oui' if systemctl_test.rc == 0 else 'Non' }}
+          
+    - name: Test avec service traditionnel
+      shell: "service ssh status"
+      register: service_traditional_test
+      ignore_errors: yes
+      
+    - name: Méthode de gestion recommandée
+      debug:
+        msg: |
+          {% if not ssh_service_test.failed %}
+          Utiliser: module 'service' Ansible
+          {% elif systemctl_test.rc == 0 %}
+          Utiliser: commandes systemctl directes
+          {% elif service_traditional_test.rc == 0 %}
+          Utiliser: commandes service traditionnelles
+          {% else %}
+          Utiliser: gestion manuelle des processus
+          {% endif %}

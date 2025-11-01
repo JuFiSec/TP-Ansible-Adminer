@@ -1,0 +1,62 @@
+---
+- name: Gestion de cron dans conteneurs Docker
+  hosts: targets
+  become: yes
+  tasks:
+    - name: Vérifier si cron est installé
+      shell: "which cron || which crond"
+      register: cron_installed
+      ignore_errors: yes
+      
+    - name: Installer cron si nécessaire
+      apt:
+        name: cron
+        state: present
+      when: cron_installed.rc != 0
+      
+    - name: Tentative de démarrage cron avec service
+      service:
+        name: cron
+        state: started
+      register: cron_service
+      ignore_errors: yes
+      
+    - name: Démarrage alternatif de cron
+      block:
+        - name: Démarrer cron avec systemctl
+          shell: "systemctl start cron"
+          register: cron_systemctl
+          ignore_errors: yes
+          
+        - name: Démarrage manuel de cron
+          shell: "/usr/sbin/cron"
+          when: cron_systemctl.failed
+          register: cron_manual
+          
+      when: cron_service.failed
+      
+    - name: Vérifier que cron est actif
+      shell: "pgrep cron || pgrep crond"
+      register: cron_process
+      ignore_errors: yes
+      
+    - name: Créer une tâche cron de test
+      cron:
+        name: "Test cron Docker"
+        minute: "*/5"
+        job: "echo '$(date): Cron actif sur {{ ansible_hostname }}' >> /var/log/cron_test.log"
+        
+    - name: Attendre et vérifier l'exécution
+      pause:
+        seconds: 10
+        
+    - name: Vérifier les logs cron
+      shell: "tail -5 /var/log/cron_test.log 2>/dev/null || echo 'Pas encore de logs'"
+      register: cron_logs
+      
+    - name: Statut cron
+      debug:
+        msg: |
+          Cron installé: {{ 'Oui' if cron_installed.rc == 0 else 'Installé maintenant' }}
+          Processus actif: {{ 'Oui' if cron_process.rc == 0 else 'Non' }}
+          Derniers logs: {{ cron_logs.stdout }}

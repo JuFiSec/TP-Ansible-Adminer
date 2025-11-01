@@ -1,0 +1,11 @@
+[mysqld_safe]
+socket = {{ mysql_socket }}
+
+[mysqld]
+bind-address = {{ mysql_bind_address }}
+port = {{ mysql_port }}
+character-set-server = {{ mysql_charset }}
+collation-server = {{ mysql_collation }}
+server-id = {{ mysql_server_id }}
+log_bin = /var/log/mysql/mysql-bin.log
+binlog_format = ROW

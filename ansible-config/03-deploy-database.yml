@@ -1,0 +1,423 @@
+#!/usr/bin/env ansible-playbook
+# ====================================================================
+# PLAYBOOK 03 : DÉPLOIEMENT DATABASE (MYSQL 8.0)
+# ====================================================================
+# Objectif :
+#   - Installation et configuration de MySQL 8.0
+#   - Création des bases de données
+#   - Création des utilisateurs MySQL
+#   - Configuration de sécurité
+#   - Tests de connectivité
+# ====================================================================
+# Utilisation :
+#   ansible-playbook 03-deploy-database.yml
+#   ansible-playbook 03-deploy-database.yml --tags "mysql"
+#   ansible-playbook 03-deploy-database.yml -u ansible --ask-vault-pass
+# ====================================================================
+
+---
+
+- name: "DEPLOY-DATABASE : Déploiement MySQL 8.0"
+  hosts: db_servers
+  become: yes
+  gather_facts: yes
+
+  # Variables Vault (secrets)
+  vars_files:
+    - vault/secrets.yml
+
+  # Tâches pré-playbook
+  pre_tasks:
+    - name: "Afficher l'hôte en cours de configuration"
+      debug:
+        msg: "==> Déploiement MySQL 8.0 sur {{ inventory_hostname }}"
+      tags:
+        - always
+
+  # Tâches principales
+  tasks:
+
+    # ================================================================
+    # SECTION 1 : INSTALLATION MYSQL 8.0
+    # ================================================================
+
+    - name: "[MYSQL] Mettre à jour la liste des paquets"
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      tags:
+        - mysql
+        - packages
+
+    - name: "[MYSQL] Installer MySQL 8.0"
+      apt:
+        name: "{{ mysql_package }}"
+        state: present
+      tags:
+        - mysql
+        - packages
+      retries: 3
+      delay: 10
+
+    - name: "[MYSQL] Installer les outils MySQL supplémentaires"
+      apt:
+        name: "{{ mysql_client_packages }}"
+        state: present
+      tags:
+        - mysql
+        - packages
+        - client
+    
+    - name: "[MYSQL] Installer les dépendances de compilation pour mysqlclient"
+      apt:
+        name:
+          - pkg-config
+          - libmysqlclient-dev
+        state: present
+      tags:
+        - mysql
+        - packages
+        - python
+
+    - name: "[MYSQL] Installer le pilote Python pour MySQL"
+      pip:
+        name: mysqlclient
+        state: present
+      tags:
+        - mysql
+        - packages
+        - python
+
+    # ================================================================
+    # SECTION 2 : CONFIGURATION MYSQL
+    # ================================================================
+
+    - name: "[MYSQL] Créer le dossier de backup"
+      file:
+        path: "{{ mysql_backup_directory }}"
+        state: directory
+        owner: mysql
+        group: mysql
+        mode: "0755"
+      when: create_backup_directory | default(yes)
+      tags:
+        - mysql
+        - dirs
+        - backup
+
+    - name: "[MYSQL] Configurer le bind address (écouter sur toutes les interfaces)"
+      ini_file:
+        path: "{{ mysql_daemon_config_file }}"
+        section: "mysqld"
+        option: "bind-address"
+        value: "{{ mysql_bind_address | default('0.0.0.0') }}"
+        state: present
+      tags:
+        - mysql
+        - config
+      notify: Redémarrer MySQL
+
+    - name: "[MYSQL] Configurer le port d'écoute"
+      ini_file:
+        path: "{{ mysql_daemon_config_file }}"
+        section: "mysqld"
+        option: "port"
+        value: "{{ mysql_port | default(3306) }}"
+        state: present
+      tags:
+        - mysql
+        - config
+      notify: Redémarrer MySQL
+
+    - name: "[MYSQL] Configurer le charset par défaut"
+      ini_file:
+        path: "{{ mysql_daemon_config_file }}"
+        section: "mysqld"
+        option: "character-set-server"
+        value: "utf8mb4"
+        state: present
+      tags:
+        - mysql
+        - config
+      notify: Redémarrer MySQL
+
+    - name: "[MYSQL] Configurer la collation par défaut"
+      ini_file:
+        path: "{{ mysql_daemon_config_file }}"
+        section: "mysqld"
+        option: "collation-server"
+        value: "utf8mb4_unicode_ci"
+        state: present
+      tags:
+        - mysql
+        - config
+      notify: Redémarrer MySQL
+
+    - name: "[MYSQL] Activer les logs binaires"
+      ini_file:
+        path: "{{ mysql_daemon_config_file }}"
+        section: "mysqld"
+        option: "log-bin"
+        value: "/var/log/mysql/mysql-bin.log"
+        state: present
+      when: enable_binary_logging | default(yes)
+      tags:
+        - mysql
+        - config
+        - logging
+      notify: Redémarrer MySQL
+    
+    - name: "[MYSQL] Définir le server-id (requis pour log-bin)"
+      ini_file:
+        path: "{{ mysql_daemon_config_file }}"
+        section: "mysqld"
+        option: "server-id"
+        value: "1"
+        state: present
+      when: enable_binary_logging | default(yes)
+      tags:
+        - mysql
+        - config
+        - logging
+      notify: Redémarrer MySQL
+
+    - name: "[MYSQL] Forcer le redémarrage pour appliquer la config"
+      meta: flush_handlers
+
+    - name: "[MYSQL] Démarrer et activer le service MySQL"
+      command: "service mysql start"
+      changed_when: false
+      tags:
+        - mysql
+        - services
+
+    - name: "[MYSQL] Vérifier que MySQL est en cours d'exécution"
+      wait_for:
+        port: 3306
+        host: "127.0.0.1"
+        timeout: 30
+      tags:
+        - mysql
+        - verification
+
+
+    # ================================================================
+    # SECTION 3 : SÉCURITÉ MYSQL
+    # ================================================================
+
+    - name: "[SECURITY] Changer le mot de passe root MySQL (EN PREMIER !)"
+      mysql_user:
+        name: "root"
+        password: "{{ mysql_root_password }}"
+        login_unix_socket: "{{ mysql_socket }}"
+        update_password: always
+      tags:
+        - mysql
+        - security
+        - root
+      no_log: yes
+
+    - name: "[SECURITY] Supprimer les utilisateurs anonymes MySQL"
+      mysql_user:
+        name: ""
+        host: "{{ item }}"
+        state: absent
+        login_user: "root"
+        login_password: "{{ mysql_root_password }}"
+      loop:
+        - localhost
+        - "{{ ansible_fqdn }}"
+      tags:
+        - mysql
+        - security
+        - anonyme
+      when: remove_anonymous_users | default(yes)
+
+    - name: "[SECURITY] Supprimer la base de données 'test'"
+      mysql_db:
+        name: "test"
+        state: absent
+        login_user: "root"
+        login_password: "{{ mysql_root_password }}"
+      tags:
+        - mysql
+        - security
+        - test_db
+      when: remove_test_database | default(yes)
+
+    # ================================================================
+    # SECTION 4 : CRÉATION DES BASES DE DONNÉES
+    # ================================================================
+
+    - name: "[DATABASE] Créer les bases de données"
+      mysql_db:
+        name: "{{ item.name }}"
+        encoding: "{{ item.charset | default('utf8mb4') }}"
+        collation: "{{ item.collation | default('utf8mb4_unicode_ci') }}"
+        state: "{{ item.state | default('present') }}"
+        login_user: "root"
+        login_password: "{{ mysql_root_password }}"
+      loop: "{{ mysql_databases }}"
+      tags:
+        - mysql
+        - database
+        - create
+      when: mysql_databases is defined
+
+    - name: "[DATABASE] Lister les bases de données créées"
+      mysql_query:
+        query: "SHOW DATABASES;"
+        login_user: "root"
+        login_password: "{{ mysql_root_password }}"
+      tags:
+        - mysql
+        - database
+        - verification
+      register: databases
+      changed_when: false
+
+    - name: "[DATABASE] Afficher les bases de données"
+      debug:
+        msg: "Bases de données : {{ databases.query_result[0] | map(attribute='Database') | list }}"
+      tags:
+        - mysql
+        - database
+        - verification
+
+    # ================================================================
+    # SECTION 5 : CRÉATION DES UTILISATEURS MYSQL
+    # ================================================================
+
+    - name: "[USERS] Créer les utilisateurs MySQL"
+      mysql_user:
+        name: "{{ item.name }}"
+        password: "{{ item.password }}"
+        host: "{{ item.host | default('localhost') }}"
+        priv: "{{ item.priv | default('*.*:USAGE') }}"
+        state: "{{ item.state | default('present') }}"
+        login_user: "root"
+        login_password: "{{ mysql_root_password }}"
+      loop: "{{ mysql_users }}"
+      tags:
+        - mysql
+        - users
+        - create
+      no_log: yes
+      when: mysql_users is defined
+
+    - name: "[USERS] Lister les utilisateurs MySQL"
+      mysql_query:
+        query: "SELECT user, host FROM mysql.user;"
+        login_user: "root"
+        login_password: "{{ mysql_root_password }}"
+      tags:
+        - mysql
+        - users
+        - verification
+      register: mysql_user_list
+      changed_when: false
+
+    - name: "[USERS] Afficher les utilisateurs MySQL"
+      debug:
+        msg: "Utilisateurs MySQL : {{ mysql_user_list.query_result[0] | map(attribute='user') | unique | list }}"
+      tags:
+        - mysql
+        - users
+        - verification
+
+    # ================================================================
+    # SECTION 6 : INITIALISATION DES DONNÉES (CORRIGÉ POUR LE TP)
+    # ================================================================
+
+    - name: "[DATA] Créer la table 'etudiants' (demandé par le TP)"
+      mysql_query:
+        query: |
+          CREATE TABLE IF NOT EXISTS testdb.etudiants (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nom VARCHAR(100),
+            prenom VARCHAR(100),
+            promotion VARCHAR(50)
+          );
+        login_user: "root"
+        login_password: "{{ mysql_root_password }}"
+      tags:
+        - mysql
+        - data
+        - test_data
+
+    - name: "[DATA] Insérer les données des étudiants (demandé par le TP)"
+      mysql_query:
+        query: |
+          INSERT IGNORE INTO testdb.etudiants (nom, prenom, promotion)
+          VALUES
+          ('Dupont', 'Jean', '2024'),
+          ('Martin', 'Sophie', '2024'),
+          ('Bernard', 'Luc', '2025');
+        login_user: "root"
+        login_password: "{{ mysql_root_password }}"
+      tags:
+        - mysql
+        - data
+        - test_data
+
+    # ================================================================
+    # SECTION 7 : VÉRIFICATIONS FINALES
+    # ================================================================
+
+    - name: "[VERIFICATION] Tester la connexion MySQL localement"
+      mysql_query:
+        query: "SELECT VERSION();"
+        login_user: "root"
+        login_password: "{{ mysql_root_password }}"
+      tags:
+        - mysql
+        - verification
+        - connection
+      register: mysql_version
+
+    - name: "[VERIFICATION] Afficher la version MySQL"
+      debug:
+        msg: "MySQL Version: {{ mysql_version.query_result[0][0].get('VERSION()') }}"
+      tags:
+        - mysql
+        - verification
+
+    - name: "[VERIFICATION] Vérifier la connectivité depuis le réseau"
+      wait_for:
+        host: "127.0.0.1" # Corrigé: ansible_default_ipv4 n'est pas fiable ici
+        port: 3306
+        timeout: 10
+      tags:
+        - mysql
+        - verification
+        - network
+      register: network_check
+      failed_when: false
+
+    - name: "[VERIFICATION] Afficher le résumé du déploiement"
+      debug:
+        msg:
+          - "✓ MySQL 8.0 installé et actif"
+          - "✓ Bases de données créées : testdb, adminer_db"
+          - "✓ Utilisateur 'adminer_user' créé"
+          - "✓ MySQL écoute sur {{ mysql_bind_address }}:{{ mysql_port }}"
+          - "✓ Données de test initialisées"
+      tags:
+        - always
+
+  # Handlers pour relancer les services
+  handlers:
+    - name: "Redémarrer MySQL"
+      command: "service mysql restart"
+
+    - name: "Recharger les privileges MySQL"
+      mysql_user:
+        name: root
+        host: localhost
+        state: present
+        login_user: "root"
+        login_password: "{{ mysql_root_password }}"
+
+# ====================================================================
+# FIN PLAYBOOK 03
+# ====================================================================

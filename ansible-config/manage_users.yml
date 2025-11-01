@@ -1,0 +1,120 @@
+---
+- name: Gestion des utilisateurs et groupes
+  hosts: targets
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    # Définition des groupes à créer
+    system_groups:
+      - name: devops
+        gid: 3000
+        description: "Équipe DevOps"
+      - name: developers
+        gid: 3001
+        description: "Équipe de développement"
+      - name: monitoring
+        gid: 3002
+        description: "Groupe de monitoring"
+    
+    # Définition des utilisateurs à créer
+    system_users:
+      - name: devuser
+        uid: 2000
+        group: devops
+        groups: 
+          - sudo
+          - developers
+        comment: "Utilisateur DevOps principal"
+        shell: /bin/bash
+        
+  tasks:
+    - name: Affichage du début de configuration
+      debug:
+        msg: "Configuration des utilisateurs sur {{ ansible_hostname }}"
+
+    - name: Création des groupes système
+      group:
+        name: "{{ item.name }}"
+        gid: "{{ item.gid }}"
+        state: present
+        system: no
+      loop: "{{ system_groups }}"
+      register: group_creation
+      
+    - name: Vérification de la création des groupes
+      debug:
+        msg: "Groupe {{ item.item.name }} créé avec GID {{ item.item.gid }}"
+      loop: "{{ group_creation.results }}"
+      when: item.changed
+      
+    - name: Affichage de tous les groupes créés
+      shell: "getent group | grep -E '(devops|developers|monitoring)'"
+      register: created_groups
+      
+    - name: Résultat des groupes
+      debug:
+        var: created_groups.stdout_lines
+
+    - name: Création de l'utilisateur DevOps principal
+      user:
+        name: "{{ system_users[0].name }}"
+        uid: "{{ system_users[0].uid }}"
+        group: "{{ system_users[0].group }}"
+        groups: "{{ system_users[0].groups | join(',') }}"
+        comment: "{{ system_users[0].comment }}"
+        shell: "{{ system_users[0].shell }}"
+        create_home: yes
+        home: "/home/{{ system_users[0].name }}"
+        state: present
+      register: devuser_creation
+      
+    - name: Affichage du résultat création utilisateur
+      debug:
+        msg: "Utilisateur {{ system_users[0].name }} créé avec UID {{ system_users[0].uid }}"
+      when: devuser_creation.changed
+      
+    - name: Création de l'utilisateur application
+      user:
+        name: appuser
+        uid: 2001
+        group: developers
+        groups: devops
+        comment: "Utilisateur pour applications"
+        shell: /bin/bash
+        create_home: yes
+        state: present
+        
+    - name: Création de l'utilisateur monitoring
+      user:
+        name: monitoring
+        uid: 2002
+        group: monitoring
+        comment: "Utilisateur de surveillance système"
+        shell: /bin/bash
+        create_home: yes
+        state: present
+        system: no  # Utilisateur normal, pas système
+
+    - name: Configuration du répertoire SSH pour devuser
+      file:
+        path: "/home/devuser/.ssh"
+        state: directory
+        owner: devuser
+        group: devops
+        mode: '0700'
+        
+    - name: Génération d'une clé SSH pour devuser
+      user:
+        name: devuser
+        generate_ssh_key: yes
+        ssh_key_bits: 2048
+        ssh_key_file: .ssh/id_rsa
+        
+    - name: Configuration de sudoers pour devuser
+      lineinfile:
+        path: /etc/sudoers.d/devuser
+        line: 'devuser ALL=(ALL) NOPASSWD:ALL'
+        create: yes
+        mode: '0440'
+        validate: 'visudo -cf %s'

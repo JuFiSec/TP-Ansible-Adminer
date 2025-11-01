@@ -1,0 +1,42 @@
+---
+- name: Installation spécialisée par groupe
+  hosts: all
+  become: yes
+  tasks:
+    - name: Installation pour serveurs web
+      apt:
+        name:
+          - apache2
+          - php
+          - mysql-client
+        state: present
+      when: inventory_hostname in groups['web_servers']
+
+    - name: Installation pour serveurs DB
+      apt:
+        name:
+          - mysql-server
+          - postgresql-client
+        state: present
+      when: inventory_hostname in groups['db_servers']
+
+    - name: Configuration Apache (serveurs web seulement)
+      service:
+        name: apache2
+        state: started
+        enabled: yes
+      when: inventory_hostname in groups['web_servers']
+
+    - name: Création d'une page de test
+      copy:
+        content: |
+          <html>
+          <head><title>Serveur {{ ansible_hostname }}</title></head>
+          <body>
+            <h1>Serveur Web {{ ansible_hostname }}</h1>
+            <p>Configuré par Ansible</p>
+            <p>Date: {{ ansible_date_time.iso8601 }}</p>
+          </body>
+          </html>
+        dest: /var/www/html/index.html
+      when: inventory_hostname in groups['web_servers']

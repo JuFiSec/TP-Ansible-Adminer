@@ -1,0 +1,44 @@
+# Diagnostiquer l'environnement des conteneurs
+---
+- name: Diagnostic de l'environnement Docker
+  hosts: targets
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    - name: Vérifier le gestionnaire de services
+      debug:
+        msg: "Gestionnaire détecté: {{ ansible_service_mgr }}"
+        
+    - name: Vérifier si systemd est fonctionnel
+      shell: "systemctl --version"
+      register: systemd_check
+      ignore_errors: yes
+      
+    - name: Statut systemd
+      debug:
+        msg: |
+          Systemd disponible: {{ 'Oui' if systemd_check.rc == 0 else 'Non' }}
+          {% if systemd_check.rc != 0 %}
+          Erreur: {{ systemd_check.stderr }}
+          {% endif %}
+          
+    - name: Lister les processus en cours
+      shell: "ps aux | head -10"
+      register: processes
+      
+    - name: Processus actifs
+      debug:
+        var: processes.stdout_lines
+        
+    - name: Vérifier les services SSH et cron
+      shell: "pgrep -f '{{ item }}' || echo 'not running'"
+      loop:
+        - sshd
+        - cron
+      register: service_processes
+      
+    - name: État des services essentiels
+      debug:
+        msg: "{{ item.item }}: {{ 'Running' if 'not running' not in item.stdout else 'Stopped' }}"
+      loop: "{{ service_processes.results }}"

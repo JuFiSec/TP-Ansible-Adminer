@@ -1,0 +1,11 @@
+---
+- name: Créer un fichier bonjour.txt
+  hosts: for-target-2
+  tasks:
+    - name: Copier le fichier bonjour
+      copy:
+        content: "Bonjour, Ansible !"
+        dest: /tmp/bonjour.txt
+        mode: '0644'
+        owner: ansible
+        group: ansible

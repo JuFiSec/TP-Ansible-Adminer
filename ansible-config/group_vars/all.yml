@@ -1,0 +1,149 @@
+# ====================================================================
+# VARIABLES COMMUNES À TOUS LES SERVEURS
+# ====================================================================
+# Ces variables s'appliquent à TOUS les hôtes (web_servers + db_servers)
+# ====================================================================
+
+---
+
+# ====================================================================
+# SYSTÈME
+# ====================================================================
+
+# Mise à jour du système
+system_update: yes
+system_upgrade: yes
+
+# Timezone
+timezone: "Europe/Paris"
+# Autres options : Europe/Paris, America/New_York, etc.
+
+# Locale
+locale: "en_US.UTF-8"
+
+# ====================================================================
+# PAQUETS SYSTÈME
+# ====================================================================
+
+# Paquets essentiels pour tous les serveurs
+common_packages:
+  - curl
+  - wget
+  - git
+  - htop
+  - net-tools
+  - ca-certificates
+  - build-essential
+  - python3-dev
+  - python3-pip
+  - python3.10
+  - python3.10-dev
+  - vim
+  - nano
+  - openssh-client
+  - openssh-server
+  - tzdata
+  - locales
+
+# ====================================================================
+# SSH
+# ====================================================================
+
+# Port SSH
+ssh_port: 22
+
+# Autoriser connexion root
+permit_root_login: "no"
+
+# Authentification par mot de passe
+password_authentication: "no"
+
+# Authentification par clé
+pubkey_authentication: "yes"
+
+# ====================================================================
+# PYTHON
+# ====================================================================
+
+# Version Python par défaut
+python_version: "3.10"
+
+# Interpréteur Python
+python_interpreter: "/usr/bin/python3.10"
+
+# Paquets Python globaux
+python_global_packages:
+  - pip
+  - setuptools
+  - wheel
+
+# ====================================================================
+# UTILISATEURS
+# ====================================================================
+
+# Utilisateur Ansible (créé si n'existe pas)
+ansible_user_name: "ansible"
+ansible_user_uid: 1000
+ansible_user_shell: "/bin/bash"
+ansible_user_home: "/home/ansible"
+
+# Créer le groupe sudo pour escalade de privilèges
+create_sudo_group: yes
+
+# ====================================================================
+# AUTHENTIFICATION
+# ====================================================================
+
+# Autoriser sudo sans mot de passe pour l'utilisateur ansible
+sudo_nopasswd: yes
+
+# ====================================================================
+# LOGS & MONITORING
+# ====================================================================
+
+# Dossier pour les logs Ansible
+log_directory: "/var/log/ansible"
+
+# Dossier pour les backups
+backup_directory: "/var/backups/ansible"
+
+# ====================================================================
+# PERFORMANCES
+# ====================================================================
+
+# Paramètres de tuning système
+vm_swappiness: 10
+net_core_somaxconn: 1024
+net_ipv4_tcp_max_syn_backlog: 2048
+
+# ====================================================================
+# SÉCURITÉ
+# ====================================================================
+
+# Activez le firewall
+enable_firewall: no
+# Note : En Docker, le firewall n'est généralement pas nécessaire
+
+# ====================================================================
+# TAGS POUR ORGANISATION
+# ====================================================================
+
+# Tags pour filtrer l'exécution des playbooks
+# Utilisez : ansible-playbook playbook.yml --tags "tag_name"
+# Ou : ansible-playbook playbook.yml --skip-tags "tag_name"
+
+tags:
+  - common
+  - system
+  - essential
+
+# ====================================================================
+# DEBUG
+# ====================================================================
+
+# Mode verbose (pour débogage)
+verbose_mode: no
+
+# Afficher les variables
+show_vars: no
+

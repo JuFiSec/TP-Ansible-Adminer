@@ -1,0 +1,35 @@
+---
+- name: Test des fonctionnalités utilisateurs
+  hosts: for-target-1
+  become: yes
+  vars:
+    ansible_remote_tmp: /tmp/.ansible-tmp
+  tasks:
+    - name: Test création de fichier par devuser
+      become_user: devuser
+      copy:
+        content: "Test par devuser le {{ ansible_date_time.iso8601 }}"
+        dest: /tmp/test_devuser.txt
+
+    - name: Test création de fichier par appuser
+      become_user: appuser
+      copy:
+        content: "Test par appuser le {{ ansible_date_time.iso8601 }}"
+        dest: /tmp/test_appuser.txt
+
+    - name: Test commande sudo par devuser
+      become_user: devuser
+      shell: "sudo whoami"
+      register: sudo_test
+
+    - name: Résultat test sudo
+      debug:
+        msg: "devuser peut utiliser sudo: {{ sudo_test.stdout == 'root' }}"
+
+    - name: Vérification des fichiers créés
+      shell: "ls -la /tmp/test_*.txt"
+      register: files_created
+
+    - name: Affichage des fichiers
+      debug:
+        var: files_created.stdout_lines

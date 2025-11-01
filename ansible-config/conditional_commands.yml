@@ -1,0 +1,21 @@
+---
+- name: Commandes conditionnelles
+  hosts: all
+  tasks:
+    - name: Vérifier si un fichier existe
+      shell: test -f /tmp/bonjour.txt && echo "exists" || echo "not found"
+      register: file_check
+
+    - name: Créer le fichier s'il n'existe pas
+      copy:
+        content: "Fichier créé automatiquement"
+        dest: /tmp/bonjour.txt
+      when: file_check.stdout == "not found"
+
+    - name: Afficher le contenu du fichier
+      shell: cat /tmp/bonjour.txt
+      register: file_content
+
+    - name: Résultat
+      debug:
+        msg: "Contenu: {{ file_content.stdout }}"

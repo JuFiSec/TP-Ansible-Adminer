@@ -1,0 +1,43 @@
+---
+- name: Gestion SSH dans conteneurs Docker
+  hosts: targets
+  become: yes
+  tasks:
+    - name: S'assurer que SSH est démarré
+      service:
+        name: ssh
+        state: started
+      register: ssh_result
+      ignore_errors: yes
+      
+    - name: Gestion alternative si module service échoue
+      block:
+        - name: Démarrer SSH manuellement
+          shell: "/usr/sbin/sshd -D &"
+          when: ssh_result.failed
+          
+        - name: Attendre que SSH soit prêt
+          wait_for:
+            port: 22
+            host: "{{ ansible_default_ipv4.address }}"
+            timeout: 10
+          when: ssh_result.failed
+          
+      rescue:
+        - name: Diagnostic SSH
+          shell: "ps aux | grep sshd | grep -v grep"
+          register: ssh_processes
+          
+        - name: Afficher les processus SSH
+          debug:
+            var: ssh_processes.stdout_lines
+            
+    - name: Vérification finale SSH
+      shell: "ss -tlnp | grep :22 || netstat -tlnp | grep :22"
+      register: ssh_port_check
+      
+    - name: Statut final SSH
+      debug:
+        msg: |
+          SSH opérationnel: {{ 'Oui' if ssh_port_check.stdout else 'Non' }}
+          Port 22 ouvert: {{ 'Oui' if ':22' in ssh_port_check.stdout else 'Non' }}
