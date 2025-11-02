@@ -609,7 +609,7 @@ web-server | SUCCESS => {"ping": "pong"}
 db-server  | SUCCESS => {"ping": "pong"}
 ```
 
-![Screenshot 1: Ansible Ping](screenshots/01-ansible-ping.png)
+![Screenshot 1: Ansible Ping](Screenshots/01-ansible-ping.png)
 
 **Prouve :**
 - ✅ Connectivité SSH établie
@@ -626,7 +626,7 @@ web-server : ok=51 changed=23 failed=0 skipped=0 unreachable=0
 db-server  : ok=57 changed=26 failed=0 skipped=0 unreachable=0
 ```
 
-![Screenshot 2: Playbook Recap](screenshots/02-playbook-recap.png)
+![Screenshot 2: Playbook Recap](Screenshots/02-playbook-recap.png)
 
 **Prouve :**
 - ✅ Tous les playbooks réussis
@@ -640,7 +640,7 @@ db-server  : ok=57 changed=26 failed=0 skipped=0 unreachable=0
 
 **URL :** `http://localhost:8080/adminer/adminer.php`
 
-![Screenshot 3: Adminer Login](screenshots/03-adminer-login.png)
+![Screenshot 3: Adminer Login](Screenshots/03-adminer-login.png)
 
 **Affichage :**
 - ✅ Logo Adminer 4.8.1 visible
@@ -663,7 +663,7 @@ Utilisateur  : adminer_user
 Mot de passe : AdminerUserPassword_Secure2025!
 ```
 
-![Screenshot 4: Adminer Connected](screenshots/04-adminer-connected.png)
+![Screenshot 4: Adminer Connected](Screenshots/04-adminer-connected.png)
 
 **Bases affichées :**
 - ✅ testdb (créée par le playbook)
@@ -682,7 +682,7 @@ Mot de passe : AdminerUserPassword_Secure2025!
 
 ### Screenshot 5 : Table etudiants - Données de test ✅
 
-![Screenshot 5: Etudiants Table](screenshots/05-etudiants-table.png)
+![Screenshot 5: Etudiants Table](Screenshots/05-etudiants-table.png)
 
 **Données affichées :**
 
@@ -707,7 +707,7 @@ Mot de passe : AdminerUserPassword_Secure2025!
 SELECT * FROM etudiants WHERE promotion = '2024';
 ```
 
-![Screenshot 6: Adminer Query](screenshots/06-adminer-query.png)
+![Screenshot 6: Adminer Query](Screenshots/06-adminer-query.png)
 
 **Résultat :** 2 lignes trouvées
 
